@@ -1,14 +1,16 @@
-var AUTH = { // Default Auth Object
+// Default Auth Object
+const AUTH = {
     "+": "v",
     "%": "h",
     "@": "o",
     "&": "a",
     "~": "q"
-}
+};
+
 // Object types
-var Channel = function Channel(name) {
+const Channel = function Channel(name) {
     if (!name) return null;
-    var channel = Object.create(Channel.prototype);
+    const channel = Object.create(Channel.prototype);
     channel.name = name;
     channel.users = {};
     channel.topic = "";
@@ -33,31 +35,34 @@ var Channel = function Channel(name) {
 }
 
 Channel.prototype = {
-    toString: function () {
+    toString () {
         return this.name;
     },
     
-    addUser: function (nick) {
-        var authModes = [];
+    addUser (nick) {
+        const authModes = [];
         while (nick[0] in AUTH) {
             authModes.push(AUTH[nick[0]]);
             nick = nick.slice(1);
         }
+
         this.users[nick] = nick;
-        var addAuthToNick = function (mode) {
-            this.updateModes({mode: mode, parameter: nick, set: true});
+
+        const addAuthToNick = (mode) => {
+            this.updateModes({mode, parameter: nick, set: true});
         };
-        authModes.forEach(addAuthToNick.bind(this));
+
+        authModes.forEach(addAuthToNick);
     },
 
-    removeUser: function (nick) {
+    removeUser (nick) {
         delete this.users[nick];
         for (var symbol in AUTH) {
             if (this.modes[AUTH[symbol]][nick]) this.updateModes({mode: AUTH[symbol], parameter: nick, set: false});
         }
     },
     
-    renameUser: function (nick, newNick) {
+    renameUser (nick, newNick) {
         this.users[newNick] = this.users[nick];
         for (var symbol in AUTH) {
             if (this.modes[AUTH[symbol]][nick]) this.updateModes({mode: AUTH[symbol], parameter: newNick}, this.modes[AUTH[symbol]][nick]);
@@ -65,30 +70,33 @@ Channel.prototype = {
         this.removeUser(nick);
     },
     
-    getUsers: function () {
+    getUsers () {
         return Object.keys(this.users);
     },
     
-    forEachUser: function (fn) { // Iterate over user nicks
+    // Iterate over user nicks
+    forEachUser (fn) {
         if (typeof fn !== "function") return null;
         this.getUsers().forEach(fn);
         return true;
     },
     
-    updateTopic: function (topic) {
+    updateTopic (topic) {
         this.topic = topic;
         this.topicHistory.unshift({topic:topic});
     },
     
-    updateTopicInfo: function (editedBy, lastEdited) {
+    updateTopicInfo (editedBy, lastEdited) {
         this.topicHistory[0].editedBy = editedBy;
         this.topicHistory[0].lastEdited = lastEdited;
     },
     
-    updateModes: function (modeObj, sender, time) {
+    updateModes (modeObj, sender, time) {
         time = Number(time) || Date.now();
-        var mode = modeObj.mode, set = !!modeObj.set, parameter = modeObj.parameter || false;
-        var listModes = {"v":"+","h":"%","o":"@","a":"&","q":"~","b":"bans","e":"excepts","I":"invited"};
+        const mode = modeObj.mode
+        const set = Boolean(modeObj.set)
+        const parameter = modeObj.parameter || false;
+        const listModes = {"v":"+","h":"%","o":"@","a":"&","q":"~","b":"bans","e":"excepts","I":"invited"};
         if (mode in listModes) {
             if (!this.modes[mode]) this.modes[mode] = {};
             if (set) {
@@ -100,7 +108,7 @@ Channel.prototype = {
             if (set) {
                 this.modes[mode] = parameter || true;
             } else {
-                client.debug("Removing "+mode+" mode.");
+                client.debug(`Removing ${mode} mode.`);
                 delete this.modes[mode];
             }
         }
@@ -125,10 +133,10 @@ Channel.prototype = {
         nick = nick || "";
         if (!this.users[nick]) return null;
         if (auth in AUTH) auth = AUTH[auth];
-        var authLevels = ["q", "a", "o", "h", "v"];
+        const authLevels = ["q", "a", "o", "h", "v"];
         auth = authLevels.indexOf(auth) > -1 ? auth : false;
-        var nickAuth = "";
-        for (var mode in authModes) {
+        let nickAuth = "";
+        for (const mode in authModes) {
             if (this.modes[mode][nick]) {
                 if (auth) {
                     if (authLevels.indexOf(mode) <= authLevels.indexOf(auth)) {
@@ -137,65 +145,62 @@ Channel.prototype = {
                     }
                 } else {
                     nickAuth += mode;
-                    continue;
                 }
             }
         }
         if (auth && !nickAuth) return false;
         return nickAuth;
     },
-    addBan: function (target, setBy, setTime, reason) {
+
+    addBan (target, setBy, setTime, reason) {
         if (!target) return null;
         setBy = setBy || "";
         setTime = Number(setTime) || Date.now();
         reason = reason || "";
-        this.banList[target] = {
-            setBy: setBy,
-            setTime: setTime,
-            reason: reason
-        };
+        this.banList[target] = { setBy, setTime, reason };
         return true;
     },
-    addExcept: function (target, setBy, setTime) {
+
+    addExcept (target, setBy, setTime) {
         if (!target) return null;
         setBy = setBy || "";
         setTime = Number(setTime) || Date.now();
-        this.exceptList[target] = {
-            setBy: setBy,
-            setTime: setTime
-        };
+        this.exceptList[target] = { setBy, setTime };
         return true;
     },
+
     addInvite: function (target, setBy, setTime) {
         if (!target) return null;
         setBy = setBy || "";
         setTime = Number(setTime) || Date.now();
-        this.inviteList[target] = {
-            setBy: setBy,
-            setTime: setTime
-        };
+        this.inviteList[target] = { setBy, setTime };
         return true;
     }
 };
 
 var channel_plugin = {
     name: "channels",
-    requires: ["messages"],
-    init: function (client, imports) {
-        var Channels = function Channels(name) {
+    requires: ["messages", "self"],
+    init (client, imports) {
+        const Channels = function Channels(name) {
             if (typeof name === "undefined") return Channels.chans();
             if (typeof name === "string") return Channels.get(name);
-        }
+            throw new TypeError("Channels function must either be given a string or undefined.");
+        };
+
         Channels.channels = {};
+
         Channels.get = function (name) {
             return Channels.channels[name];
-        }
+        };
+
         Channels.all = function (sortFn) {
             return Object.keys(Channels.channels).sort(sortFn)
-        }
+        };
+
         Channels.chans = function (sortFn) {
             return Object.keys(Channels.channels).map(Channels.get).sort(sortFn);
-        }
+        };
 
         const addChannel = function (name) {
             Channels.channels[name] = Channel(name);
@@ -205,90 +210,111 @@ var channel_plugin = {
             delete Channels.channels[name];
         }
 
-        var handles = {
-            "join": function (msg) { // client.on("join") Add a user or channel
-                var isSelf = client.nickname() === msg.nickname;
+        const handlers = {
+            // NOTE(Dan_Ugore): client.on("join") Add a user or channel
+            join ({channel, nickname}) {
+                const isSelf = client.nickname() === nickname;
                 if (isSelf) {
-                    addChannel(msg.channel);
-                    client.mode(msg.channel, "b"); // Get bans
-                    client.mode(msg.channel, "e"); // Get excepts
-                    client.mode(msg.channel, "I"); // Get invites
+                    addChannel(channel);
+                    client.mode(channel, "b"); // Get bans
+                    client.mode(channel, "e"); // Get excepts
+                    client.mode(channel, "I"); // Get invites
                 } else {
-                    Channels(msg.channel).addUser(msg.nickname);
+                    Channels.get(channel).addUser(nickname);
                 }
             },
-            "quit": function (msg) { // client.on("quit") Remove user from all channels and from user list
-                var nick = msg.nickname;
-                var reason = msg.reason;
+
+            // NOTE(Dan_Ugore): client.on("quit") Remove user from all channels and from user list
+            quit ({nickname}) {
                 Channels.chans().forEach(function (chan) {
-                    if (nick in chan.users) chan.removeUser(nick);
+                    if (nickname in chan.users) {
+                        chan.removeUser(nick);
+                    }
                 });
             },
-            "part": function (msg) { // client.on("part") Remove user from parted channel
-                var isSelf = client.nickname() === msg.nickname;
+
+            // NOTE(Dan_Ugore): client.on("part") Remove user from parted channel
+            part ({channel, nickname}) {
+                var isSelf = client.nickname() === nickname;
                 if (isSelf) {
-                    delete removeChannel(msg.channel);
+                    removeChannel(channel);
                 } else {
-                    Channels(msg.channel).removeUser(msg.nickname);
+                    Channels.get(channel).removeUser(nickname);
                 }
             },
-            "kick": function (msg) { // client.on("kick") Remove kicked user from channel
-                var isSelf = client.nickname() === msg.kicked;
+
+            // NOTE(Dan_Ugore): client.on("kick") Remove kicked user from channel
+            kick ({channel, kicked}) {
+                var isSelf = client.nickname() === kicked;
                 if (isSelf) {
-                    delete removeChannel(msg.channel);
+                    delete removeChannel(channel);
                 } else {
-                    Channels(msg.channel).removeUser(msg.kicked);
+                    Channels.get(channel).removeUser(kicked);
                 }
             },
-            "nick": function (msg) { // client.on("nick") Update nick across channels
-                var nick = msg.old;
-                var newNick = msg.new;
+
+            // NOTE(Dan_Ugore): client.on("nick") Update nick across channels
+            nick ({old: nickname, new: newNick}) {
                 Channels.chans().forEach(function (chan) {
-                    if (nick in chan.users) chan.renameUser(nick, newNick);
+                    if (nickname in chan.users) chan.renameUser(nickname, newNick);
                 });
             },
-            "332" : function (msg) { // client.on("332") Update Topic
-                var channel = msg.channel;
-                Channels(channel).updateTopic(msg.topic);
+
+            // NOTE(Dan_Ugore): client.on("332") Update Topic
+            332 ({channel, topic}) {
+                Channels.get(channel).updateTopic(topic);
             },
-            "333": function (msg) { // client.on("333") Update Topic Info
-                Channels(msg.channel).updateTopicInfo(msg.who, msg.timestamp);
+
+            // NOTE(Dan_Ugore): client.on("333") Update Topic Info
+            333 ({channel, who, timestamp}) {
+                Channels.get(channel).updateTopicInfo(who, timestamp);
             },
-            "353" : function (msg) { // client.on("353") Update channel with users
-                var channel = Channels(msg.channel);
-                msg.nicknames.forEach(channel.addUser.bind(channel));
+
+            // NOTE(Dan_Ugore): client.on("353") Update channel with users
+            353 ({channel, nicknames}) {
+                channel = Channels.get(channel);
+                nicknames.forEach(channel.addUser.bind(channel));
             },
+
             // Lists
+
             // Banlist
-            "367": function (msg) {
-                var channel = Channels(msg.channel);
+            367 ({channel, hostmaskPattern, setter, timestamp}) {
+                channel = Channels.get(channel);
                 if (!channel) return;
-                channel.updateModes({mode: "b", parameter: msg.hostmaskPattern, set: true}, msg.setter, msg.timestamp);
+                channel.updateModes({mode: "b", parameter: hostmaskPattern, set: true}, setter, timestamp);
             },
-            // exceptList
-            "346": function (msg) {
-                var channel = Channels(msg.channel);
-                channel.updateModes({mode: "e", parameter: msg.hostmaskPattern, set: true}, msg.setter, msg.timestamp);
+
+            // ExceptList
+            346 ({channel, hostmaskPattern, setter, timestamp}) {
+                channel = Channels.get(channel);
+                channel.updateModes({mode: "e", parameter: hostmaskPattern, set: true}, setter, timestamp);
             },
-            // inviteList
-            "348": function (msg) {
-                var channel = Channels(msg.channel);
-                channel.updateModes({mode: "I", parameter: msg.hostmaskPattern, set: true}, msg.setter, msg.timestamp);
+
+            // InviteList
+            348 ({channel, hostmaskPattern, setter, timestamp}) {
+                channel = Channels.get(channel);
+                channel.updateModes({mode: "I", parameter: hostmaskPattern, set: true}, setter, timestamp);
             },
-            "mode": function (msg) {
-                if (msg.channel.charAt(0) !== "#") return;
-                var handleMode = (function (modeObj) {
-                    Channels(msg.channel).updateModes(modeObj, msg.nickname);
-                }).bind(Channels(msg.channel));
-                msg.modes.forEach(handleMode);
+
+            mode ({channel, nickname, modes}) {
+                if (channel.charAt(0) !== "#") {
+                    return;
+                }
+
+                const handleMode = function (modeObj) {
+                    Channels.get(channel).updateModes(modeObj, nickname);
+                };
+
+                modes.forEach(handleMode);
             }
         };
+
         return {
-            handlers: handles,
-            help: {},
+            handlers,
             exports: Channels,
             commands: [],
-       };
+        };
     }
 }
 
