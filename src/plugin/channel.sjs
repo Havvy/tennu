@@ -8,12 +8,14 @@ const AUTH = {
 };
 
 // Object types
-const Channel = function Channel(name) {
+const Channel = function Channel (name, {maxTopicHistoryLength}) {
     if (!name) return null;
     const channel = Object.create(Channel.prototype);
     channel.name = name;
     channel.users = {};
+
     channel.topic = "";
+    channel.maxTopicHistoryLength = maxTopicHistoryLength;
     channel.topicHistory = []; // [Current, Previous, ... , First Known Topic]
 
     channel.banList = {};
@@ -32,7 +34,7 @@ const Channel = function Channel(name) {
     };
 
     return channel;
-}
+};
 
 Channel.prototype = {
     toString () {
@@ -80,10 +82,17 @@ Channel.prototype = {
         this.getUsers().forEach(fn);
         return true;
     },
-    
-    updateTopic (topic) {
+
+    updateTopic({topic, editedBy, lastEdited}) {
         this.topic = topic;
-        this.topicHistory.unshift({topic:topic});
+
+        this.topicHistory.unshift({ topic });
+        if (this.topicHistory.length > this.maxTopicHistoryLength) {
+            this.topicHistory.pop();
+        }
+
+        if (editedBy) { this.topicHistory[0].editedBy = editedBy; }
+        if (lastEdited) { this.topicHistory[0].lastEdited = lastEdited; }
     },
     
     updateTopicInfo (editedBy, lastEdited) {
@@ -180,8 +189,15 @@ Channel.prototype = {
 
 var channel_plugin = {
     name: "channels",
-    requires: ["messages", "self"],
+    requires: ["config", "messages", "self"],
+    configDefaults: {
+        "channel-topic-history-max-length": 5,
+        "channel-modelists-eager": false
+    },
+
     init (client, imports) {
+        const maxTopicHistoryLength = client.config("channel-topic-history-max-length");
+
         const Channels = function Channels(name) {
             if (typeof name === "undefined") return Channels.chans();
             if (typeof name === "string") return Channels.get(name);
@@ -203,7 +219,7 @@ var channel_plugin = {
         };
 
         const addChannel = function (name) {
-            Channels.channels[name] = Channel(name);
+            Channels.channels[name] = Channel(name, {maxTopicHistoryLength});
         };
 
         const removeChannel = function (name) {
@@ -247,7 +263,7 @@ var channel_plugin = {
             kick ({channel, kicked}) {
                 var isSelf = client.nickname() === kicked;
                 if (isSelf) {
-                    delete removeChannel(channel);
+                    removeChannel(channel);
                 } else {
                     Channels.get(channel).removeUser(kicked);
                 }
@@ -260,9 +276,13 @@ var channel_plugin = {
                 });
             },
 
+            topic ({channel, topic, nickname}) {
+                Channels.get(channel).updateTopic({topic, editedBy: nickname});
+            },
+
             // NOTE(Dan_Ugore): client.on("332") Update Topic
             332 ({channel, topic}) {
-                Channels.get(channel).updateTopic(topic);
+                Channels.get(channel).updateTopic({topic});
             },
 
             // NOTE(Dan_Ugore): client.on("333") Update Topic Info

@@ -41,9 +41,16 @@ describe("Channel Plugin", function () {
 
     beforeEach(function () {
         client = {
-            nickname: function () { return "me"; },
+            nickname () { return "me"; },
 
-            mode: function () {}
+            mode () {},
+
+            config (value) {
+                switch (value) {
+                    case "channel-topic-history-max-length": return 2;
+                    default: throw new Error(`Channel plugin asking for config value ${value}, but tests don't know about it.`);
+                }
+            }
         };
         instance = ChannelPluginFactory.init(client, {});
     });
@@ -60,11 +67,11 @@ describe("Channel Plugin", function () {
         // :irc.test.net 353 me = #a :@me 
         // :irc.test.net 366 me #a :End of /NAMES list.
         // mode #a b
-        // :irc.test.net 368 Havvy2 #a :End of Channel Ban List
+        // :irc.test.net 368 me #a :End of Channel Ban List
         // mode #a e
-        // :irc.test.net 349 Havvy2 #a :End of Channel Exception List
+        // :irc.test.net 349 me #a :End of Channel Exception List
         // mode #a I
-        // :irc.test.net 347 Havvy2 #a :End of Channel Invite List
+        // :irc.test.net 347 me #a :End of Channel Invite List
         // PART #a
         // :me!tennu@tennu.net PART #a
         // QUIT
@@ -77,6 +84,7 @@ describe("Channel Plugin", function () {
             name: "#a",
             users: {},
             topic: "",
+            maxTopicHistoryLength: 2,
             topicHistory: [],
             banList: {},
             exceptList: {},
@@ -92,6 +100,7 @@ describe("Channel Plugin", function () {
             name: "#a",
             users: {},
             topic: "",
+            maxTopicHistoryLength: 2,
             topicHistory: [],
             banList: {},
             exceptList: {},
@@ -107,6 +116,7 @@ describe("Channel Plugin", function () {
             name: "#a",
             users: { "me": "me" },
             topic: "",
+            maxTopicHistoryLength: 2,
             topicHistory: [],
             banList: {},
             exceptList: {},
@@ -128,12 +138,11 @@ describe("Channel Plugin", function () {
         // :irc.test.net 353 me = #a :@me 
         // :irc.test.net 366 me #a :End of /NAMES list.
         // mode #a b
-        // :irc.test.net 368 Havvy2 #a :End of Channel Ban List
+        // :irc.test.net 368 me #a :End of Channel Ban List
         // mode #a e
-        // :irc.test.net 349 Havvy2 #a :End of Channel Exception List
+        // :irc.test.net 349 me #a :End of Channel Exception List
         // mode #a I
-        // :irc.test.net 347 Havvy2 #a :End of Channel Invite List
-        // JOIN #a
+        // :irc.test.net 347 me #a :End of Channel Invite List
         // :other!the-other@other.net JOIN :#a
         // MODE #a +o other
         // :me!tennu@tennu.net MODE #a +o other
@@ -155,6 +164,7 @@ describe("Channel Plugin", function () {
             name: "#a",
             users: { "me": "me", "other": "other" },
             topic: "",
+            maxTopicHistoryLength: 2,
             topicHistory: [],
             banList: {},
             exceptList: {},
@@ -168,6 +178,7 @@ describe("Channel Plugin", function () {
             name: "#a",
             users: { "me": "me", "other": "other" },
             topic: "",
+            maxTopicHistoryLength: 2,
             topicHistory: [],
             banList: {},
             exceptList: {},
@@ -181,6 +192,7 @@ describe("Channel Plugin", function () {
             name: "#a",
             users: { "me": "me", "other": "other" },
             topic: "",
+            maxTopicHistoryLength: 2,
             topicHistory: [],
             banList: {},
             exceptList: {},
@@ -189,5 +201,111 @@ describe("Channel Plugin", function () {
         })));
 
         instance.handlers.part(Message(format(":%s PART %s", self.hostmask, channel_a)));
+    });
+
+    it("keeps track of the latest N topics", function () {
+        // JOIN #a
+        // :me!tennu@tennu.net JOIN :#a
+        // :irc.test.net 332 me #a :First topic
+        // :irc.test.net 333 me #a other 1000000000
+        // :irc.test.net 353 me = #a :me @other 
+        // :irc.test.net 366 me #a :End of /NAMES list.
+        // MODE #a b
+        // :irc.test.net 368 me #a :End of Channel Ban List
+        // MODE #a e
+        // :irc.test.net 349 me #a :End of Channel Exception List
+        // MODE #a I
+        // :irc.test.net 347 me #a :End of Channel Invite List
+        // :other!the-other@other.net TOPIC #a :Second topic
+        // :other!the-other@other.net TOPIC #a :Third topic
+        // QUIT
+        instance.handlers.join(Message(`:${self.hostmask} JOIN ${channel_a}`));
+        const channel = instance.exports.get("#a");
+        instance.handlers.mode(Message(`:${server} MODE ${channel_a} +nt`));
+
+        instance.handlers[332](Message(`:${server} 332 ${self.nickname} ${channel_a} :First topic`));
+        logfn(inspect(channel));
+        assert(equal(channel, create(Object.getPrototypeOf(channel), {
+            name: channel_a,
+            users: {},
+            topic: "First topic",
+            maxTopicHistoryLength: 2,
+            topicHistory: [{topic: "First topic"}],
+            banList: {},
+            exceptList: {},
+            inviteList: {},
+            modes: { v: {}, h: {}, o: {}, a: {}, q: {}, b: {}, e: {}, I: {}, n: true, t: true }
+        })));
+
+        instance.handlers[333](Message(`:${server} 333 ${self.nickname} ${channel_a} ${other.nickname} 1000000000`));
+        logfn(inspect(channel));
+        assert(equal(channel, create(Object.getPrototypeOf(channel), {
+            name: channel_a,
+            users: {},
+            topic: "First topic",
+            maxTopicHistoryLength: 2,
+            topicHistory: [
+                {
+                    topic: "First topic",
+                    editedBy: other.nickname,
+                    lastEdited: 1000000000
+                }
+            ],
+            banList: {},
+            exceptList: {},
+            inviteList: {},
+            modes: { v: {}, h: {}, o: {}, a: {}, q: {}, b: {}, e: {}, I: {}, n: true, t: true }
+        })));
+
+        instance.handlers[353](Message(`:${server} 353 ${self.nickname} = ${channel_a} :${self.nickname} @${other.nickname}`));
+
+        instance.handlers.topic(Message(`:${other.hostmask} TOPIC ${channel_a} :Second topic`));
+        logfn(inspect(channel));
+        assert(equal(channel, create(Object.getPrototypeOf(channel), {
+            name: channel_a,
+            users: { me: "me", other: "other" },
+            topic: "Second topic",
+            maxTopicHistoryLength: 2,
+            topicHistory: [
+                {
+                    topic: "Second topic",
+                    editedBy: other.nickname
+                },
+
+                {
+                    topic: "First topic",
+                    editedBy: other.nickname,
+                    lastEdited: 1000000000
+                },
+            ],
+            banList: {},
+            exceptList: {},
+            inviteList: {},
+            modes: { v: {}, h: {}, o: { "other": undefined }, a: {}, q: {}, b: {}, e: {}, I: {}, n: true, t: true }
+        })));
+
+        instance.handlers.topic(Message(`:${other.hostmask} TOPIC ${channel_a} :Third topic`));
+        logfn(inspect(channel));
+        assert(equal(channel, create(Object.getPrototypeOf(channel), {
+            name: channel_a,
+            users: { me: "me", other: "other" },
+            topic: "Third topic",
+            maxTopicHistoryLength: 2,
+            topicHistory: [
+                {
+                    topic: "Third topic",
+                    editedBy: other.nickname
+                },
+
+                {
+                    topic: "Second topic",
+                    editedBy: other.nickname
+                },
+            ],
+            banList: {},
+            exceptList: {},
+            inviteList: {},
+            modes: { v: {}, h: {}, o: { "other": undefined }, a: {}, q: {}, b: {}, e: {}, I: {}, n: true, t: true }
+        })));
     });
 });
