@@ -2,7 +2,8 @@ sudo: false
 language: node_js
 node_js:
   - "stable"
-  - "4.2"
+  - "6"
+  - "4"
 notifications:
   irc: "irc.mibbit.net#heartless"
   irc: "irc.GameSurge.Net#tennudev"  
