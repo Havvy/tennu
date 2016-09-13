@@ -1,0 +1,8 @@
+{
+    "server": "irc.example.net",
+    "password": null,
+    "port": -1,
+    "nicknames": ["tennu_testbot"],
+    "channels": [],
+    "plugins": ["static-left", "static-right"]
+}
