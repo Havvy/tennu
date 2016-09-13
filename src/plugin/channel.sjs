@@ -179,7 +179,7 @@ Channel.prototype = {
 };
 
 var channel_plugin = {
-    name: "channels",
+    name: "channel",
     requires: ["messages"],
     init: function (client, imports) {
         var Channels = function Channels(name) {

@@ -1,7 +1,7 @@
 {
   "name": "tennu",
   "version": "4.9.0",
-  "description": "Tennu - Modular IRC Bot Framework for Node.js",
+  "description": "Plugin-based IRC Bot Framework for Node.js",
   "maintainers": [
     {
       "name": "Ryan Scheel (havvy)",
@@ -55,7 +55,7 @@
     "prefix-event-subscriber": "^1.1.1",
     "r-result": "^1.4.0",
     "simplesets": "^1.2.0",
-    "tennu-plugins": "^3.2.0"
+    "tennu-plugins": "4.0.0-b4"
   },
   "devDependencies": {
     "@havvy/mock-net-socket": "^2",

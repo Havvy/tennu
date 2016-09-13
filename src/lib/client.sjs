@@ -1,8 +1,14 @@
+"use strict";
+
 const TlsSocket = require("tls").TLSSocket;
-const format = require("util").format;
 const inspect = require("util").inspect;
+
+const Plugins = require("tennu-plugins");
 const defaults = require("lodash.defaults");
 const mapValues = require("lodash.mapvalues");
+const RResult = require("r-result");
+const Ok = RResult.Ok;
+const Fail = RResult.Fail;
 
 const deepClone = function (obj) {
     if (obj === null) {
@@ -39,7 +45,6 @@ const clonedDefaults = function () {
 const defaultFactoryConfiguration = {
     "NetSocket" : require("net").Socket,
     "IrcSocket" : require("irc-socket"),
-    "Plugins" : require("tennu-plugins"),
     "Logger": require("./null-logger.js"),
 };
 
@@ -90,7 +95,7 @@ const loggerMethods = ["debug", "info", "notice", "warn", "error", "crit", "aler
             return dep;
         }
     });
-    di = defaults({}, dependencies || {}, defaultFactoryConfiguration);
+    const di = defaults({}, dependencies || {}, defaultFactoryConfiguration);
 
     // Create a logger.
     // Default logger is a bunch of NOOPs.
@@ -99,7 +104,7 @@ const loggerMethods = ["debug", "info", "notice", "warn", "error", "crit", "aler
         return typeof client._logger[method] !== "function";
     });
     if (missingLoggerMethods.length !== 0) {
-        throw new Error(format("Logger passed to tennu.Client is missing the following methods: %s", inspect(missingLoggerMethods)));
+        throw new Error(`Logger passed to tennu.Client is missing the following methods: ${inspect(missingLoggerMethods)}`);
     }
 
     var netSocket = new di.NetSocket();
@@ -113,10 +118,13 @@ const loggerMethods = ["debug", "info", "notice", "warn", "error", "crit", "aler
     // NOTE(Havvy): The config plugin has to be loaded before the IRC socket is started.
     //              It also has to be loaded so that we have a value for client._config
     //              so that client.config() works for other plugins.
-    client._plugins = new di.Plugins("tennu", client);
-    client._plugins.use(["config"], __dirname);
-    client._config = client.getPlugin("config");
-
+    client._plugins = Plugins("tennu", client);
+    const useConfigPluginResult = client._plugins.use(["config"], __dirname);
+    if (useConfigPluginResult.isFail()) {
+        throw new Error("Base plugins failed to initialize. This is probably a bug with Tennu itself.");
+    }
+    client._config = client.getPlugin("config").ok();
+    
     // The socket reads and sends messages from/to the IRC server.
     // TODO(Havvy): Put the Socket into a plugin.
     client._socket = new di.IrcSocket(config, netSocket);
@@ -140,24 +148,37 @@ const loggerMethods = ["debug", "info", "notice", "warn", "error", "crit", "aler
         // The channel plugin requires certain capabilities that these networks cannot provide.
         basePlugins = basePlugins.filter(function (plugin) { return plugin !== "channel"; });
     }
-    client._plugins.use(basePlugins, __dirname);
+    const useBasePluginsResult = client._plugins.use(basePlugins, __dirname);
+    if (useBasePluginsResult.isFail()) {
+        throw new Error("Base plugins failed to initialize. This is probably a bug with Tennu itself.");
+    }
+
     client.note("Tennu", "Loading your plugins");
-    client._plugins.use(config.plugins || [], process.cwd());
+    const useUserPluginsResult = client._plugins.use(config.plugins || [], process.cwd());
+    if (useUserPluginsResult.isFail()) {
+        client.error("Tennu", "Loading of user plugins failed!");
+        return Fail({
+            failureReason: Client.failures.InitializePluginsFailed,
+            message: "Loading user plugins failed.",
+            inner: useUserPluginsResult.fail(),
+            innerFailureTypes: Plugins.failures
+        });
+    }
 
     // Grab a reference to various plugin exports
     // so that the client can delegate the actions to it.
     // TODO(Havvy): Have a static hook for doing this.
     //              Note how "config" has to be loaded specially above.
-    client._action = client.getPlugin("action");
-    client._self = client.getPlugin("self");
-    client._subscriber = client.getPlugin("subscriber");
+    client._action = client.getPlugin("action").ok();
+    client._self = client.getPlugin("self").ok();
+    client._subscriber = client.getPlugin("subscriber").ok();
 
     client.plugins = client._plugins;
 
     client.connected = false;
 
     client.note("Tennu", "Client created.");
-    return client;
+    return Ok(client);
 };
 
 // implements Runnable ;)
@@ -365,6 +386,10 @@ Client.prototype.log = function (level) {
     this._logger[level].apply(this._logger, args);
     return this;
 };
+
+Client.failures = Object.freeze({
+    InitializePluginsFailed: Symbol("InitializePluginsFailed")
+});
 
 // Export the factory.
 module.exports = Client;

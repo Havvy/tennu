@@ -2,8 +2,6 @@ const sinon = require("sinon");
 const assert = require("better-assert");
 const equal = require("deep-eql");
 const inspect = require("util").inspect;
-const format = require("util").format;
-require("source-map-support").install();
 const defaults = require("lodash.defaults");
 
 const debug = Boolean(false || process.env.VERBOSE);
@@ -40,7 +38,7 @@ describe("Integration tests:", function () {
             client = Client(networkConfig, {
                 NetSocket: netsocket,
                 Logger: logger
-            });
+            }).ok();
 
             netsocket.on("connect", done);
             client.connect();
@@ -111,7 +109,7 @@ describe("Integration tests:", function () {
                 client = Client(defaults({channels: ["#test"]}, networkConfig), {
                     NetSocket: netsocket,
                     Logger: logger
-                });
+                }).ok();
 
                 client.connect();
 
@@ -147,7 +145,7 @@ describe("Integration tests:", function () {
                 client = Client(config, {
                     NetSocket: netsocket,
                     Logger: logger
-                });
+                }).ok();
 
                 client.connect();
 
@@ -177,7 +175,7 @@ describe("Integration tests:", function () {
         client = Client(networkConfig, {
             NetSocket: netsocket,
             Logger: logger
-        });
+        }).ok();
 
         client.connect();
 
@@ -208,7 +206,7 @@ describe("Integration tests:", function () {
         client = Client(networkConfig, {
             NetSocket: netsocket,
             Logger: logger
-        });
+        }).ok();
 
         client.initializePlugin({
             name: "test-plugin",
