@@ -1,47 +1,59 @@
-var program = require("commander");
-var Client = require("../lib/client.js");
-var fs = require("fs");
-var inspect = require("util").inspect;
-var format = require("util").format;
+"use strict";
+
+const program = require("commander");
+const Client = require("../lib/client.js");
+const fs = require("fs");
+const inspect = require("util").inspect;
+
+// NOTE(Havvy): String(symbol) gives "Symbol(symbol_name)". 
+const symbolDescription = function symbolDescription(symbol) {
+    return String(symbol).slice(7, -1);
+};
 
 program
-  .version("1.0.0")
-  .usage("[options] <config file>")
-  .option("-v, --verbose", "Log to standard out")
-  .option("-d, --debug", "Log debug messages. Requires -v")
-  .parse(process.argv);
+.version("1.0.0")
+.usage("[options] <config file>")
+.option("-v, --verbose", "Log to standard out")
+.option("-d, --debug", "Log debug messages. Requires -v")
+.parse(process.argv);
 
 
 // Get the configuration.
-var config_path = program.args[0];
+let configPath = program.args[0];
 
-if (!config_path) {
-    console.log("Error: No config path given.");
+if (!configPath) {
+    console.log("Error: No config file path passed to this program.");
     process.exit(1);
 }
 
-config_path = process.cwd() + "/" + config_path;
+configPath = `${process.cwd()}/${configPath}`;
 
-try {
-    var config = fs.readFileSync(config_path, {encoding: "utf-8"});
-} catch (e) {
-    console.log(format("Unknown Error (%s) detected!", e.name));
-    console.log();
-    console.log(e.stack);
-    process.exit(2);
-}
+const config = function iife () {
+    let config;
 
-try {
-    config = JSON.parse(config)
-} catch (e) {
-    console.log("Failed to parse configuration file.");
-    console.log();
-    console.log(e.stack);
-    process.exit(3);
-}
+    try {
+        config = fs.readFileSync(configPath, {encoding: "utf-8"});
+    } catch (e) {
+        console.log("Error occurred loading config file.");
+        console.log(`[${e.name}] ${e.message}`);
+        console.log(e.stack);
+        process.exit(2);
+    }
+
+    try {
+        config = JSON.parse(config)
+    } catch (e) {
+        console.log("Failed to parse configuration file.");
+        console.log();
+        console.log(e.stack);
+        process.exit(3);
+    }
+
+    return config;
+}();
 
 if (program.verbose) {
-    console.log(format("Connecting to %s:%d.", config.server, config.port));
+    console.log(`Connecting to ${config.server}:${config.port}.`);
 }
 
 // Create the dependency management object.
@@ -51,13 +63,13 @@ if (program.verbose) {
     var log = function (level) { 
         return function () {
             var args = Array.prototype.slice.call(arguments)
-                .map(function (arg) {
-                    if (typeof arg === "object") {
-                        return inspect(arg);
-                    } else {
-                        return String(arg);
-                    }
-                });
+            .map(function (arg) {
+                if (typeof arg === "object") {
+                    return inspect(arg);
+                } else {
+                    return String(arg);
+                }
+            });
             console.log(String(Date()), level, args.join(" "));
         };
     };
@@ -74,23 +86,63 @@ if (program.verbose) {
     };
 }
 
-// Try to connect, or print why it couldn"t.
+// Try to initialize the client.
+let client;
 try {
-    var client = Client(config, parts);
-    client.connect();
+    const clientResult = Client(config, parts);
+
+    if (clientResult.isFail()) {
+        console.log("Failure occurred initializing Tennu.");
+
+        const failure = clientResult.fail();
+        console.log(`[${symbolDescription(failure.failureReason)}] ${failure.message}`);
+
+        if (failure.failureReason === Client.failures.InitializePluginsFailed) {
+            console.log(`[${symbolDescription(failure.inner.failureReason)}] ${failure.inner.message}`);
+
+            if (failure.inner.failureReason === failure.innerFailureTypes.CannotInitialize) {
+                const validationFailure = failure.inner.validationFailure;
+                console.log(`[${symbolDescription(validationFailure.failureReason)}] ${validationFailure.reason}`);
+
+                if (validationFailure.help) {
+                    console.log(validationFailure.help);
+                }
+
+                // TODO(Havvy): Check the failure type and special messages based on that.
+                // NOTE(Havvy): At least there's no more inner kinds of failures from here on.
+                // TODO(Havvy): Should validationFailure use `reason` or `message`?
+            }
+        } else {
+            console.log("Unknown failure type (from the perspective of the tennu binary)!");
+            console.log(inspect(failure, {depth: 10, colors: true}));
+        }
+
+        process.exit(4);
+    }
 } catch (e) {
-    console.log("Error occurred creating and connecting to Tennu instance.");
-    console.log();
+    console.log("Error occurred initializing Tennu.");
+    console.log(`[${e.name}] ${e.message}`);
     console.log(e.stack);
     process.exit(4);
 }
 
-// Register hangup functions
+// Try to connect.
+try {
+    client.connect();
+} catch (e) {
+    console.log("Error occurred connecting to server.");
+    console.log(`[${e.name}] ${e.message}`);
+    console.log(e.stack);
+    process.exit(4);
+}
+
+// Register hangup functions.
 var onabort = function self () {
     if (!self.attemptedToQuitAlready) {
         client.quit("Bot terminated.");
+        self.attemptedToQuitAlready = true;
     } else {
-        process.exit(1);
+        process.exit(100);
     }
 };
 
