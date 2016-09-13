@@ -44,7 +44,11 @@ describe("User Plugin", function () {
             identified: true,
             identifiedas: "case"
         }),
-        "error": Promise.reject(new Error("An Error"))
+        "error": function iife () {
+            const error = Promise.reject(new Error("An Error"));
+            error.suppressUnhandledRejections();
+            return error;
+        }()
     };
 
     beforeEach(function () {

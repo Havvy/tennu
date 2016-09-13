@@ -6,7 +6,7 @@ const format = require("util").format;
 require("source-map-support").install();
 const defaults = require("lodash.defaults");
 
-const debug = false;
+const debug = Boolean(false || process.env.VERBOSE);
 const logfn = debug ? console.log.bind(console) : function () {};
 const logger = {debug: logfn, info: logfn, notice: logfn, warn: logfn, error: logfn, crit: logfn, alert: logfn, emerg: logfn};
 
