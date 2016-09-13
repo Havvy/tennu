@@ -1,16 +1,20 @@
+"use strict";
+
 const sinon = require("sinon");
 const assert = require("better-assert");
 const equal = require("deep-eql");
 const inspect = require("util").inspect;
-const format = require("util").format;
-require("source-map-support").install();
 const defaults = require("lodash.defaults");
 
-const debug = false;
+const debug = Boolean(false || process.env.VERBOSE);
 const logfn = debug ? console.log.bind(console) : function () {};
 const logger = {debug: logfn, info: logfn, notice: logfn, warn: logfn, error: logfn, crit: logfn, alert: logfn, emerg: logfn};
 
+const resolvepath = require("path").resolve;
+const root = "/";
+
 const Client = require("../lib/client.js");
+const Plugins = require("tennu-plugins");
 const NetSocket = require("@havvy/mock-net-socket")(sinon);
 
 const networkConfig = {
@@ -38,7 +42,7 @@ describe("Tennu Client:", function () {
         client = Client(networkConfig, {
             NetSocket: netsocket,
             Logger: logger
-        });
+        }).ok();
 
         assert(client.connected === false);
         client.connect();
@@ -49,23 +53,66 @@ describe("Tennu Client:", function () {
         assert(client.connected === false);
     });
 
-    describe("Error handling", function () {
-        it("tells you which methods are missing on the logger", function () {
-            var config = networkConfig;
+    it("Error: Missing methods on the logger", function () {
+        try {
+            Client(networkConfig, {
+                Logger: function () {
+                    return {debug: logfn, info: logfn, notice: logfn, warn: logfn, error: logfn};
+                }
+            }).ok();
 
-            try {
-                Client(networkConfig, {
-                    Logger: function () {
-                        return {debug: logfn, info: logfn, notice: logfn, warn: logfn, error: logfn};
-                    }
-                });
+            assert(false);
+        } catch (e) {
+            logfn(e.message);
+            assert(e.message === "Logger passed to tennu.Client is missing the following methods: [ 'crit', 'alert', 'emerg' ]");
+        }
+    });
 
-                assert(false);
-            } catch (e) {
-                logfn(e.message);
-                assert(e.message === "Logger passed to tennu.Client is missing the following methods: [ 'crit', 'alert', 'emerg' ]");
+    it("Failure: InitializePluginsFailed failure when failure to use user plugins", function () {
+        const paths = function iife () {
+            function parentPaths (path) {
+                const res = [];
+                let there = path;
+
+                while (there !== root) {
+                    res.push(there);
+                    there = resolvepath(there, "../");
+                }
+
+                res.push(root);
+
+                return res;
             }
+
+            return parentPaths(process.cwd());
+        }();
+
+        const config = defaults({plugins: ["dne"]}, networkConfig);
+        const result = Client(config, {
+            NetSocket: netsocket,
+            Logger: logger
         });
+
+        result.debug(logfn, {depth: null});
+
+        assert(result.isFail());
+        const failure = result.fail();
+
+        assert(typeof Client.failures.InitializePluginsFailed === "symbol");
+
+        const expectedFailure = {
+            failureReason: Client.failures.InitializePluginsFailed,
+            message: "Loading user plugins failed.",
+            inner: {
+                failureReason: Plugins.failures.CannotFindPlugin,
+                message: "Failed to locate plugin 'dne'",
+                name: "dne",
+                paths
+            },
+            innerFailureTypes: Plugins.failures
+        };
+
+        assert(equal(failure, expectedFailure));
     });
 
     // TODO(Havvy): Move to 'config' plugin.
@@ -74,7 +121,7 @@ describe("Tennu Client:", function () {
             var client = Client(networkConfig, {
                 NetSocket: netsocket,
                 Logger: logger
-            });
+            }).ok();
 
             client.connect();
 
@@ -91,7 +138,7 @@ describe("Tennu Client:", function () {
             var client = Client(config, {
                 NetSocket: netsocket,
                 Logger: logger
-            });
+            }).ok();
 
             client.connect();
             client._socket.impl.acceptConnect();
@@ -106,7 +153,7 @@ describe("Tennu Client:", function () {
             var client = Client(config, {
                 NetSocket: netsocket,
                 Logger: logger
-            });
+            }).ok();
 
             client.connect();
             client._socket.impl.acceptConnect();
@@ -121,7 +168,7 @@ describe("Tennu Client:", function () {
             var client = Client(config, {
                 NetSocket: netsocket,
                 Logger: logger
-            });
+            }).ok();
 
             client.connect();
             client._socket.impl.acceptConnect();
@@ -133,7 +180,7 @@ describe("Tennu Client:", function () {
             var client = Client(config, {
                 NetSocket: netsocket,
                 Logger: logger
-            });
+            }).ok();
 
             client.connect();
             client._socket.impl.acceptConnect();
@@ -166,7 +213,7 @@ describe("Tennu Client:", function () {
             client = Client(config, {
                 NetSocket: netsocket,
                 Logger: logger
-            });
+            }).ok();
         });
     });
 });
