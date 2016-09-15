@@ -69,8 +69,8 @@
     "source-map-support": "^0.2.7"
   },
   "scripts": {
-    "test": "gulp build && mocha -R spec",
-    "test-only": "mocha -R spec || true",
+    "test": "gulp build && mocha",
+    "test-only": "mocha || true",
     "build": "gulp build"
   },
   "bin": {

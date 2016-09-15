@@ -23,12 +23,21 @@ gulp.task("build", function () {
     .pipe(rename(function (path) {
         path.extname = ".js";
     }))
-    .pipe(gulp.dest("test"))
+    .pipe(gulp.dest("test"));
+
+    gulp.src("src/test/**/*.js")
+    .pipe(gulp.dest("test"));
+
+    gulp.src("src/test/**/*.json")
+    .pipe(gulp.dest("test"));
+
+    gulp.src("src/test/mocha.opts")
+    .pipe(gulp.dest("test"));
 
     gulp.src("src/bin/**/*.sjs")
     .pipe(concat.header("#! /usr/bin/env node\n\n"))
     .pipe(rename(function (path) {
         path.extname = ".js";
     }))
-    .pipe(gulp.dest("bin"))
+    .pipe(gulp.dest("bin"));
 });
