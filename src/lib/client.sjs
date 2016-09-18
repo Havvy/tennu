@@ -201,11 +201,6 @@ Client.prototype.act = function () {
     return this._action.act.apply(this._action, arguments);
 };
 
-// Deprecated(4.2.x)
-Client.prototype.ctcp = function () {
-    return this._action.ctcp.apply(this._action, arguments);
-};
-
 Client.prototype.ctcpRequest = function () {
     return this._action.ctcpRequest.apply(this._action, arguments);
 };

@@ -3,9 +3,8 @@ const assert = require('better-assert');
 const equal = require('deep-eql');
 const inspect = require('util').inspect;
 const format = require('util').format;
-require('source-map-support').install();
 
-const debug = false;
+const debug = Boolean(false || process.env.VERBOSE);
 const logfn = debug ? console.log.bind(console) : function () {};
 
 const Response = require('../lib/response');
@@ -181,46 +180,9 @@ describe("Response", function () {
             assert(client.act.calledWithExactly("#channel", "dances wildly!"));
         });
 
-        it("with intent of 'ctcp' with body", function () {
-            Response.send({
-                intent: "ctcp",
-                message: ["FINGER", "gives you the index finger!"],
-                target: "sender"
-            }, client);
-            
-            assert(!client.notice.called);
-            assert(!client.say.called);
-            assert(!client.act.called);
-            assert(!client.ctcpRequest.called);
-
-            assert(client.ctcpRespond.calledOnce);
-            assert(client.ctcpRespond.calledWithExactly("sender", "FINGER", "gives you the index finger!"));
-
-            // Because this intent is deprecated.
-            assert(client.warn.calledOnce);
-        });
-
-        it("with intent of 'ctcp' without body", function () {
-            Response.send({
-                intent: "ctcp",
-                message: ["VERSION"],
-                target: "sender"
-            }, client);
-            
-            assert(!client.notice.called);
-            assert(!client.say.called);
-            assert(!client.act.called);
-            assert(!client.ctcpRespond.called);
-
-            assert(client.ctcpRequest.calledOnce);
-            assert(client.ctcpRequest.calledWithExactly("sender", "VERSION"));
-
-            assert(client.warn.calledOnce);
-        });
-
         it("with intent of 'ctcpRespond'", function () {
             Response.send({
-                intent: "ctcp",
+                intent: "ctcpRespond",
                 message: ["FINGER", "gives you the index finger!"],
                 target: "sender"
             }, client);
@@ -236,7 +198,7 @@ describe("Response", function () {
 
         it("with intent of 'ctcpRequest'", function () {
             Response.send({
-                intent: "ctcp",
+                intent: "ctcpRequest",
                 message: ["VERSION"],
                 target: "sender"
             }, client);
@@ -247,7 +209,8 @@ describe("Response", function () {
             assert(!client.ctcpRespond.called);
 
             assert(client.ctcpRequest.calledOnce);
-            assert(client.ctcpRequest.calledWithExactly("sender", "VERSION"));
+            logfn(inspect(client.ctcpRequest, {colors: true, depth: 4}));
+            assert(client.ctcpRequest.calledWith("sender", "VERSION"));
         });
     });
 });

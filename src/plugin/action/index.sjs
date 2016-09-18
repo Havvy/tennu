@@ -36,9 +36,9 @@ module.exports = ActionPlugin = {
 
         // CTCP Spec: https://web.archive.org/web/20080907101719/http://www.invlogic.com/irc/ctcp2_3.html
         function makeCtcpFn (responseFn) {
-            return function ctcpRequest (target, tag, body) {
+            return function ctcp (target, tag, body) {
                 if (Array.isArray(body)) {
-                    body.forEach(function (message) { ctcpRequest(target, tag, message); });
+                    body.forEach(function (message) { ctcp(target, tag, message); });
                     return;
                 }
 
@@ -54,12 +54,6 @@ module.exports = ActionPlugin = {
 
         var ctcpRequest = makeCtcpFn(say);
         var ctcpRespond = makeCtcpFn(notice);
-
-        // Deprecated(4.2.x)
-        function ctcp () {
-            client.warn("PluginAction", "Action 'ctcp' is deprecated. Use 'ctcpRequest' or 'ctcpRespond' instead. Assuming usage is a request.");
-            ctcpRequest.apply(null, arguments);
-        }
 
         function act (target, body) {
             ctcpRequest(target, "ACTION", body);
@@ -149,10 +143,6 @@ module.exports = ActionPlugin = {
                 rawf: rawf,
                 
                 say: say,
-
-                // Deprecated(4.2.x)
-                ctcp: ctcp,
-
                 ctcpRequest: ctcpRequest,
                 ctcpRespond: ctcpRespond,
                 act: act,

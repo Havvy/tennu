@@ -2,7 +2,7 @@
  *
  * A Response is a struct with three fields:
  *
- * intent: "say" | "act" | "notice" | "ctcp" | "none"
+ * intent: "say" | "act" | "notice" | "ctcpRespond" | "ctcpRequest" | "none"
  * message: String | [SingleWordString, String]
  * target: Target
  *
@@ -67,24 +67,10 @@ module.exports = {
             act: function (channel, message) { client.act(channel, message); },
             notice: function (channel, message) { client.notice(channel, message); },
             none: function () { /* no-op */ },
-            ctcp: function (target, args) {
-                client.warn("Tennu", "Received response with deprecated intent 'ctcp'. Change to 'ctcpRespond'.");
-
-                switch (args.length) {
-                    case 2:
-                        client.ctcpRespond(target, args[0] /* tag */, args[1] /* message */);
-                        break;
-                    case 1:
-                        client.ctcpRequest(target, args[0] /* tag */);
-                        break;
-                    default:
-                        throw new TypeError("args must be an array of length 1 or 2");
-                }
-            },
             ctcpRespond: function (target, args) {
                 client.ctcpRespond(target, args[0] /* tag */, args[1] /* message */);
             },
-            ctcpRequest: function (targets, args) {
+            ctcpRequest: function (target, args) {
                 client.ctcpRequest(target, args[0] /* tag */, args[1] /* optional message */);
             }
         };
